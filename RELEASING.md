@@ -4,7 +4,8 @@ This repo uses Changesets to make npm releases reviewable.
 
 ## Normal development
 
-For any pull request that changes user-facing behavior, add a changeset:
+For any pull request that changes user-facing behavior, a changeset should be
+added before the work is considered ready to release:
 
 ```bash
 npm run changeset
@@ -19,6 +20,20 @@ Choose the smallest appropriate bump:
 The generated markdown file in `.changeset/` should explain the release impact in a sentence or two.
 
 PRs that only touch internal tooling or CI can skip a changeset when they do not need an npm release note.
+
+## Who adds the changeset
+
+Maintainers own release metadata.
+
+- For internal PRs, the author can add the changeset directly.
+- For external PRs, do not expect the contributor to know or run the Changesets
+  workflow. The reviewer or merge maintainer should add the changeset before
+  merge, or immediately afterward in a small follow-up PR.
+- If a releasable PR lands without a changeset, create a catch-up changeset PR
+  before running the release flow.
+
+The practical rule is simple: if the change should appear in npm release notes,
+make sure a maintainer gets a `.changeset/*.md` file onto `main`.
 
 ## Release flow
 
