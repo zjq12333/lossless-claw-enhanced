@@ -192,6 +192,13 @@ func main() {
 		}
 		return
 	}
+	if len(os.Args) > 1 && os.Args[1] == "doctor" {
+		if err := runDoctorCommand(os.Args[2:]); err != nil {
+			fmt.Fprintf(os.Stderr, "lcm-tui doctor failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) > 1 && os.Args[1] == "prompts" {
 		if err := runPromptsCommand(os.Args[2:]); err != nil {
 			fmt.Fprintf(os.Stderr, "lcm-tui prompts failed: %v\n", err)

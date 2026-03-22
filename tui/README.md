@@ -36,6 +36,7 @@ lcm-tui --db /path/to/lcm.db    # custom database path
 **Repair & Maintain**
 - **Rewrite** (`w`) — re-summarize a node using current depth-aware prompts
 - **Subtree rewrite** (`W`) — bottom-up rewrite of an entire branch with auto-accept mode
+- **Doctor** — detect and repair genuinely truncated summaries with position-aware marker checks
 - **Dissolve** (`d`) — reverse a condensation, restoring parent summaries to active context
 - **Repair** — find and fix corrupted summaries (fallback truncations from failed API calls)
 - **Transplant** — deep-copy summary DAGs between conversations with full message/edge rewiring
@@ -50,6 +51,7 @@ lcm-tui --db /path/to/lcm.db    # custom database path
 Each interactive operation has a standalone CLI equivalent for scripting:
 
 ```bash
+lcm-tui doctor 44 --show-diff                        # preview real truncation repairs
 lcm-tui repair 44 --apply                           # fix corrupted summaries
 lcm-tui rewrite 44 --all --apply --diff              # re-summarize everything
 lcm-tui dissolve 44 --summary-id sum_abc --apply     # undo a condensation
