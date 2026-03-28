@@ -1,6 +1,48 @@
-# lossless-claw
+# lossless-claw-enhanced
+
+> Enhanced fork of [Martian-Engineering/lossless-claw](https://github.com/Martian-Engineering/lossless-claw) — fixes CJK token estimation for accurate multilingual compaction.
 
 Lossless Context Management plugin for [OpenClaw](https://github.com/openclaw/openclaw), based on the [LCM paper](https://papers.voltropy.com/LCM) from [Voltropy](https://x.com/Voltropy). Replaces OpenClaw's built-in sliding-window compaction with a DAG-based summarization system that preserves every message while keeping active context within model token limits.
+
+## What's enhanced
+
+The upstream plugin estimates tokens using `Math.ceil(text.length / 4)`, which assumes ~4 ASCII characters per token. This severely **underestimates by 2-4x** for CJK text (Chinese/Japanese/Korean), because each CJK character maps to ~1.5 tokens in modern tokenizers (cl100k_base, o200k_base).
+
+**Impact of the upstream bug:**
+- Compaction triggers too late, causing context window overflow
+- Context assembly budgets are miscalculated
+- Summary target sizes are wrong
+- Large file interception misses CJK-heavy files
+
+**What we fixed:**
+
+| Character Type | Upstream (tokens/char) | Enhanced (tokens/char) | Correction |
+|---|---|---|---|
+| ASCII/Latin | 0.25 | 0.25 | unchanged |
+| CJK (Chinese, Japanese, Korean) | 0.25 | 1.5 | **6x** |
+| Emoji / Supplementary Plane | 0.5 | 2.0 | **4x** |
+
+```
+"这个项目的架构设计非常优秀" (14 CJK chars)
+  Upstream:  ceil(14 / 4)   =  4 tokens  (wrong)
+  Enhanced:  ceil(14 * 1.5) = 21 tokens  (accurate)
+  Real (cl100k_base):         19 tokens
+```
+
+**Changes:**
+- Shared `src/estimate-tokens.ts` with CJK/emoji-aware estimation
+- Consolidated 5 duplicate `estimateTokens()` into a single import
+- Idempotent migration recalculates `token_count` for all existing messages and summaries on upgrade
+- 18 test cases (10 estimation + 8 migration)
+
+## Upstream compatibility
+
+Tracks [Martian-Engineering/lossless-claw](https://github.com/Martian-Engineering/lossless-claw) `main` branch:
+
+```bash
+git fetch upstream
+git merge upstream/main
+```
 
 ## Table of contents
 

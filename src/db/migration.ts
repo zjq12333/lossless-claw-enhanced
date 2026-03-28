@@ -1,4 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
+import { estimateTokens } from "../estimate-tokens.js";
 import { getLcmDbFeatures } from "./features.js";
 
 type SummaryColumnInfo = {
@@ -425,6 +426,85 @@ function backfillToolCallColumns(db: DatabaseSync): void {
   );
 }
 
+/**
+ * Recalculate token_count for all messages and summaries using the CJK-aware
+ * `estimateTokens()` function.  The old formula (`Math.ceil(text.length / 4)`)
+ * under-counts CJK text by 2–6x, which causes compaction decisions to fire
+ * too late.
+ *
+ * This migration is idempotent — it stores a flag in `lcm_migration_flags`
+ * and skips the work if the flag is already present.  All updates happen in a
+ * single transaction for atomicity.
+ */
+function recalculateCjkTokenCounts(db: DatabaseSync): void {
+  db.exec(
+    `CREATE TABLE IF NOT EXISTS lcm_migration_flags (flag TEXT PRIMARY KEY)`,
+  );
+
+  const FLAG = "cjk_token_recount_v1";
+  const existing = db
+    .prepare(`SELECT flag FROM lcm_migration_flags WHERE flag = ?`)
+    .get(FLAG) as { flag: string } | undefined;
+  if (existing) {
+    return;
+  }
+
+  db.exec("BEGIN");
+  try {
+    // --- Messages ---
+    const messages = db
+      .prepare(`SELECT message_id, content FROM messages`)
+      .all() as Array<{ message_id: number; content: string }>;
+
+    if (messages.length > 0) {
+      const updateMsg = db.prepare(
+        `UPDATE messages SET token_count = ? WHERE message_id = ?`,
+      );
+      let messagesUpdated = 0;
+      for (const msg of messages) {
+        const newCount = estimateTokens(msg.content);
+        updateMsg.run(newCount, msg.message_id);
+        messagesUpdated++;
+      }
+      if (messagesUpdated > 0) {
+        console.log(
+          `[lcm] CJK token recount: updated ${messagesUpdated} message(s)`,
+        );
+      }
+    }
+
+    // --- Summaries ---
+    const summaries = db
+      .prepare(`SELECT summary_id, content FROM summaries`)
+      .all() as Array<{ summary_id: string; content: string }>;
+
+    if (summaries.length > 0) {
+      const updateSum = db.prepare(
+        `UPDATE summaries SET token_count = ? WHERE summary_id = ?`,
+      );
+      let summariesUpdated = 0;
+      for (const sum of summaries) {
+        const newCount = estimateTokens(sum.content);
+        updateSum.run(newCount, sum.summary_id);
+        summariesUpdated++;
+      }
+      if (summariesUpdated > 0) {
+        console.log(
+          `[lcm] CJK token recount: updated ${summariesUpdated} summary(ies)`,
+        );
+      }
+    }
+
+    // Mark migration as complete
+    db.prepare(`INSERT INTO lcm_migration_flags (flag) VALUES (?)`).run(FLAG);
+
+    db.exec("COMMIT");
+  } catch (err) {
+    db.exec("ROLLBACK");
+    throw err;
+  }
+}
+
 export function runLcmMigrations(
   db: DatabaseSync,
   options?: { fts5Available?: boolean },
@@ -586,6 +666,7 @@ export function runLcmMigrations(
   backfillSummaryDepths(db);
   backfillSummaryMetadata(db);
   backfillToolCallColumns(db);
+  recalculateCjkTokenCounts(db);
 
   const fts5Available = options?.fts5Available ?? getLcmDbFeatures(db).fts5Available;
   if (!fts5Available) {
