@@ -1,4 +1,4 @@
-# lossless-claw-enhanced
+# 🦞lossless-claw-enhanced
 
 > Enhanced fork of [Martian-Engineering/lossless-claw](https://github.com/Martian-Engineering/lossless-claw) — fixes CJK token estimation and cherry-picks critical upstream bug fixes for production reliability.
 
